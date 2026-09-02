@@ -12,10 +12,8 @@ export default function DonorDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (user?.firebase_uid || user?.id) {
-      // Use whichever ID is available (firebase_uid from backend or id from firebase directly)
-      const uid = user.firebase_uid || user.id;
-      
+    const uid = user?.firebase_uid || user?.uid || user?.id;
+    if (uid) {
       Promise.all([
         fetch(`/api/donations/donor/${uid}`).then(res => res.json()),
         fetch(`/api/donations/donor/${uid}/history`).then(res => res.json())
@@ -45,8 +43,13 @@ export default function DonorDashboard() {
     }
   };
 
+  // Compute accurate active and completed counts
   const activeDonationsCount = donations.filter(d => d.status === 'available' || d.status === 'accepted').length;
-  const completedDonationsCount = donations.filter(d => d.status === 'completed').length;
+  const completedDonationsCount = donations.filter(d => d.status === 'completed').length + history.filter(h => !donations.some(d => d.id === h.id)).length;
+  const totalDonationsCount = activeDonationsCount + completedDonationsCount;
+
+  // Filter list to render recent active/pending cards
+  const activeDonationsList = donations.filter(d => d.status !== 'completed');
 
   return (
     <div className="space-y-8">
@@ -68,7 +71,7 @@ export default function DonorDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatsCard 
           title="Total Donations" 
-          value={donations.length.toString()} 
+          value={totalDonationsCount.toString()} 
           icon={<Package className="w-5 h-5" />} 
           description="Lifetime posts"
         />
@@ -92,16 +95,15 @@ export default function DonorDashboard() {
         
         {loading ? (
           <div className="text-center py-12 text-brand-muted">Loading your donations...</div>
-        ) : donations.length === 0 ? (
+        ) : activeDonationsList.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-xl border border-brand-sage/30">
             <Package className="w-12 h-12 text-brand-muted mx-auto mb-3 opacity-50" />
-            <h3 className="text-lg font-medium text-brand-charcoal mb-1">No donations yet</h3>
+            <h3 className="text-lg font-medium text-brand-charcoal mb-1">No active donations</h3>
             <p className="text-brand-muted">When you create a food donation, it will appear here.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {donations.map((donation) => {
-              // Add expired status dynamically
+            {activeDonationsList.map((donation) => {
               let displayStatus = donation.status;
               if (displayStatus === 'available' && new Date(donation.pickupDeadline) < new Date()) {
                 displayStatus = 'expired';

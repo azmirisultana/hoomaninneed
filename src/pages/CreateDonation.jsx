@@ -18,7 +18,7 @@ export default function CreateDonation() {
     quantity: '',
     unit: 'portions',
     ingredients: '',
-    allergens: [] ,
+    allergens: [],
     prepDate: '',
     availableFrom: '',
     pickupDeadline: '',
@@ -48,12 +48,21 @@ export default function CreateDonation() {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmitError('');
+
+    const uid = user?.firebase_uid || user?.uid || user?.id;
+
+    if (!uid) {
+      setSubmitError('User account details not completely loaded yet. Please wait a second and try again.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch('/api/donations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          firebaseUid: user?.firebase_uid || user?.uid || user?.id,
+          firebaseUid: uid,
           ...formData
         })
       });

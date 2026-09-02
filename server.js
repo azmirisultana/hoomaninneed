@@ -19,7 +19,6 @@ async function startServer() {
   app.use(express.json());
 
   // --- MySQL Database Connection Pool ---
-  // In development, this connects to your local XAMPP/MySQL database.
   const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -32,7 +31,7 @@ async function startServer() {
 
   // --- API ROUTES ---
 
-  // USERS API: This replaces the localStorage mock
+  // USERS API
   app.post('/api/users', async (req, res) => {
     const { uid, email, name, role } = req.body;
     
@@ -41,29 +40,21 @@ async function startServer() {
     }
 
     try {
-      // Check if user already exists
       const [existingUsers] = await pool.query('SELECT * FROM users WHERE firebase_uid = ?', [uid]);
       
       if (existingUsers.length > 0) {
         const existingUser = existingUsers[0];
-        let updated = false;
         
-        // If the database has "User" but a real name was provided, update it
         if (name && name !== 'User' && existingUser.name === 'User') {
           await pool.query('UPDATE users SET name = ? WHERE id = ?', [name, existingUser.id]);
           existingUser.name = name;
-          updated = true;
         }
 
-        // If a specific role was provided and it differs from the existing role, update it
-        // This fixes the race condition where onAuthStateChanged passes null first.
         if (role && role !== existingUser.role) {
           await pool.query('UPDATE users SET role = ? WHERE id = ?', [role, existingUser.id]);
           existingUser.role = role;
-          updated = true;
         }
         
-        // Return existing user
         return res.json({
           id: existingUser.id,
           firebase_uid: uid,
@@ -73,7 +64,6 @@ async function startServer() {
         });
       }
       
-      // If no user exists, create a new one
       const insertRole = role || 'donor';
       const [result] = await pool.query(
         'INSERT INTO users (firebase_uid, name, email, role) VALUES (?, ?, ?, ?)',
@@ -125,7 +115,6 @@ async function startServer() {
         safetyNotes 
       } = req.body;
 
-      // Find the user's internal MySQL ID
       const [users] = await pool.query('SELECT id FROM users WHERE firebase_uid = ?', [firebaseUid]);
       if (users.length === 0) {
         return res.status(404).json({ error: 'User not found in MySQL' });
@@ -135,7 +124,6 @@ async function startServer() {
       const formattedDeadline = pickupDeadline ? pickupDeadline.replace('T', ' ') : null;
       const safeAllergens = allergens ? JSON.stringify(allergens) : '[]';
 
-      // Insert donation
       const [result] = await pool.query(
         `INSERT INTO donations 
         (donor_id, food_name, category, description, quantity, unit, ingredients, allergens, pickup_deadline, location, safety_notes, status) 
@@ -185,6 +173,7 @@ async function startServer() {
   });
 
   // DONATIONS API: Get donations for a specific donor by their Firebase UID
+  // FIXED: Removed d.status != 'completed' filter so stats are calculated properly
   app.get('/api/donations/donor/:uid', async (req, res) => {
     try {
       const { uid } = req.params;
@@ -200,7 +189,7 @@ async function startServer() {
         JOIN users u ON d.donor_id = u.id
         LEFT JOIN tasks t ON d.id = t.donation_id
         LEFT JOIN users c ON t.volunteer_id = c.id
-        WHERE u.firebase_uid = ? AND d.status != 'completed'
+        WHERE u.firebase_uid = ? AND d.status != 'cancelled'
         ORDER BY d.created_at DESC
       `, [uid]);
       res.json(rows);
@@ -222,10 +211,7 @@ async function startServer() {
       }
       const collectorId = users[0].id;
 
-      // Update donation status to accepted
       await pool.query('UPDATE donations SET status = "accepted" WHERE id = ?', [id]);
-      
-      // Add to tasks to record who booked it
       await pool.query(
         'INSERT INTO tasks (donation_id, volunteer_id, status) VALUES (?, ?, "accepted") ON DUPLICATE KEY UPDATE status="accepted"',
         [id, collectorId]
@@ -243,10 +229,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       
-      // Update donation status to completed
       await pool.query('UPDATE donations SET status = "completed" WHERE id = ?', [id]);
-      
-      // Update task status to completed
       await pool.query(
         'UPDATE tasks SET status = "completed", completed_at = CURRENT_TIMESTAMP WHERE donation_id = ?',
         [id]
@@ -340,7 +323,6 @@ async function startServer() {
   });
 
   // --- VITE MIDDLEWARE ---
-  // Mount Vite middleware for development (handles asset serving and HMR)
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -348,7 +330,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    // Production static serving
     const distPath = path.join(__dirname, 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -356,7 +337,6 @@ async function startServer() {
     });
   }
 
-  // --- START SERVER ---
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
