@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* 
+  Tailwind v4 Theme Configuration 
+  Based on the requested color palette:
+  Primary (Evergreen): #1F4D3A
+  Primary Dark: #17332A
+  Soft Sage: #DCE8DF
+  Warm Cream (bg): #F8F6EF
+  White: #FFFFFF
+  Warm Amber: #D79A45
+  Muted Red: #B85C55
+  Charcoal: #27302B
+  Muted Text: #6B756F
+*/
+@theme {
+  --color-brand-primary: #1F4D3A;
+  --color-brand-primary-dark: #17332A;
+  --color-brand-sage: #DCE8DF;
+  --color-brand-cream: #F8F6EF;
+  --color-brand-white: #FFFFFF;
+  --color-brand-amber: #D79A45;
+  --color-brand-red: #B85C55;
+  --color-brand-charcoal: #27302B;
+  --color-brand-muted: #6B756F;
+  --font-sans: 'Inter', sans-serif;
+}
+
+body {
+  background-color: var(--color-brand-cream);
+  color: var(--color-brand-charcoal);
+  font-family: var(--font-sans);
+}
